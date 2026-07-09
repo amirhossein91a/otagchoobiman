@@ -1,0 +1,44 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: .buildozer_global
+          key: buildozer-global-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-global-${{ runner.os }}-
+
+      - name: Cache Buildozer local directory
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-local-${{ runner.os }}-${{ hashFiles('buildozer.spec', 'main.py', 'service.py') }}
+          restore-keys: |
+            buildozer-local-${{ runner.os }}-
+
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        with:
+          command: buildozer android debug
+        env:
+          BUILDOZER_GLOBAL_DIR: .buildozer_global
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: otagh-choobi-apk
+          path: bin/*.apk
