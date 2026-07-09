@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 90
 
     env:
       BUILDOZER_WARN_ON_ROOT: 0
@@ -24,7 +25,7 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
@@ -34,32 +35,66 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git zip unzip autoconf libtool pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
-            cmake libffi-dev libssl-dev
+            git \
+            zip \
+            unzip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            tar \
+            wget \
+            curl \
+            build-essential \
+            ccache
 
-      - name: Install Buildozer
+      - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install Cython==0.29.33 buildozer
+
+      - name: Prepare Android SDK directories
+        run: |
+          mkdir -p "$ANDROID_SDK_ROOT"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          mkdir -p "$ANDROID_SDK_ROOT/licenses"
 
       - name: Install Android command line tools
         run: |
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
           cd "$ANDROID_SDK_ROOT/cmdline-tools"
           curl -fsSL -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           unzip -q commandlinetools.zip
-          rm commandlinetools.zip
-          mv cmdline-tools latest
-          mkdir -p "$ANDROID_SDK_ROOT/licenses"
+          rm -f commandlinetools.zip
 
-      - name: Accept Android licenses and install SDK packages
+          rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          mv cmdline-tools "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+
+          rm -rf "$ANDROID_SDK_ROOT/tools"
+          ln -s "$ANDROID_SDK_ROOT/cmdline-tools/latest" "$ANDROID_SDK_ROOT/tools"
+
+      - name: Verify sdkmanager
         run: |
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
+          ls -la "$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_SDK_ROOT/tools/bin"
+          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --version
+
+      - name: Accept licenses and install Android SDK packages
+        run: |
+          yes | "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --licenses || true
+          yes | "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-33" \
             "build-tools;37.0.0"
+
+      - name: Show installed SDK packages
+        run: |
+          "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" --sdk_root="$ANDROID_SDK_ROOT" --list_installed || true
+          find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -type f | head -50 || true
 
       - name: Build APK
         run: |
